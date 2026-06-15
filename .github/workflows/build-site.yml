@@ -54,6 +54,14 @@ jobs:
           touch site/sitemap.xml
           touch site/robots.txt
 
+          touch site/templates/state-template.html
+          touch site/templates/county-template.html
+          touch site/templates/city-template.html
+          
+          touch site/docs/architecture.md
+          touch site/docs/seo.md
+          touch site/docs/internal-linking.md
+          
       - name: Run AI Pipeline
         run: |
           python pipeline.py
