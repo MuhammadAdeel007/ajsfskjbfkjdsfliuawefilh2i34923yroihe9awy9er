@@ -2,9 +2,11 @@
 name: AI Website Builder
 
 on:
-  push:
-    paths:
-      - "prompts/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
 jobs:
 
   build:
@@ -31,6 +33,26 @@ jobs:
       - name: Install Aider
         run: |
           pip install -r requirements.txt
+          
+      - name: Create project structure
+        run: |
+          mkdir -p site/assets/css
+          mkdir -p site/assets/js
+          mkdir -p site/templates
+          mkdir -p site/docs
+
+          touch site/index.html
+          touch site/services.html
+          touch site/blog.html
+          touch site/faq.html
+          touch site/about.html
+          touch site/contact.html
+
+          touch site/assets/css/style.css
+          touch site/assets/js/main.js
+
+          touch site/sitemap.xml
+          touch site/robots.txt
 
       - name: Run AI Pipeline
         run: |
