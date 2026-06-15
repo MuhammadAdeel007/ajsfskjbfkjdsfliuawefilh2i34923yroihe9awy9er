@@ -219,3 +219,290 @@ Avoid:
 * Repetition
 * Thin content
 
+PREMIUM UI/UX DESIGN SYSTEM
+
+This website must look like a modern venture-backed SaaS company.
+
+Design inspiration:
+
+* Stripe
+* Linear
+* Vercel
+* Mercury
+* Ramp
+* Notion
+* Airbnb
+* Webflow Enterprise
+
+Avoid:
+
+* Generic contractor websites
+* Low-quality lead-gen templates
+* Outdated directory sites
+* Excessive gradients
+* Cluttered interfaces
+
+---
+
+## VISUAL GOALS
+
+The website must feel:
+
+* Premium
+* Modern
+* Fast
+* Trustworthy
+* Enterprise-grade
+* Minimal
+* Sophisticated
+
+---
+
+## GRID SYSTEM
+
+Use:
+
+* 12-column grid
+* Max width: 1280px
+* Article width: 720–820px
+* Responsive containers
+
+---
+
+## SPACING SYSTEM
+
+Use consistent spacing:
+
+4px
+8px
+12px
+16px
+24px
+32px
+48px
+64px
+96px
+128px
+
+---
+
+## TYPOGRAPHY
+
+Desktop:
+
+Hero H1:
+56–72px
+
+H2:
+40–48px
+
+H3:
+28–32px
+
+Body:
+18px
+
+Small:
+14–16px
+
+Mobile:
+
+H1:
+40–48px
+
+H2:
+32px
+
+H3:
+24px
+
+Body:
+16px
+
+---
+
+## BUTTON SYSTEM
+
+Primary:
+
+* Filled
+* Large
+* High contrast
+* Strong hover state
+* 12px radius
+
+Secondary:
+
+* Outline
+
+Tertiary:
+
+* Text button
+
+---
+
+## CARD SYSTEM
+
+Use:
+
+* 16–24px border radius
+* Soft shadows
+* Hover elevation
+* Consistent padding
+* Subtle borders
+
+Applies to:
+
+* Service cards
+* Location cards
+* Blog cards
+* FAQ cards
+* CTA cards
+
+---
+
+## SECTION DESIGN
+
+Alternate:
+
+* White sections
+* Light neutral sections
+
+Create visual rhythm.
+
+---
+
+## HERO DESIGN
+
+Must include:
+
+* Trust-focused headline
+* Supporting copy
+* Primary CTA
+* Secondary CTA
+
+Do not generate fake statistics.
+
+---
+
+## CTA DESIGN
+
+Every CTA section should include:
+
+* Strong headline
+* Supporting copy
+* Two CTA buttons
+* Contrasting background
+
+---
+
+## BLOG DESIGN
+
+Magazine-style layout.
+
+Include:
+
+* Featured article
+* Grid layout
+* Categories
+* Reading time
+* Author placeholder
+
+---
+
+## FAQ DESIGN
+
+Accordion style.
+
+Requirements:
+
+* Accessible
+* Keyboard navigable
+* Smooth transitions
+
+---
+
+## HEADER
+
+Sticky.
+
+Contains:
+
+* Logo
+* Services
+* Locations
+* Blog
+* FAQ
+* About
+* Contact
+* CTA Button
+
+---
+
+## FOOTER
+
+Enterprise multi-column footer.
+
+Columns:
+
+* Services
+* States
+* Cities
+* Resources
+* Company
+* Legal
+
+---
+
+## MOTION
+
+Allowed:
+
+* Fade-up
+* Hover scale
+* Smooth accordion
+
+Avoid:
+
+* Parallax
+* Auto-playing effects
+* Excessive animation
+
+---
+
+## ACCESSIBILITY
+
+Meet WCAG 2.1 AA.
+
+Include:
+
+* Focus states
+* Proper contrast
+* Semantic HTML
+* Keyboard navigation
+* ARIA support
+
+---
+
+## PAGE DESIGN REQUIREMENTS
+
+Every page must include:
+
+* Strong visual hierarchy
+* Alternating sections
+* Modern spacing
+* Premium cards
+* CTA every 2–3 sections
+* Mobile-first structure
+* Accessibility support
+* Internal linking modules
+* SEO semantic structure
+
+Pages should resemble:
+
+* Stripe
+* Linear
+* Vercel
+* Webflow Enterprise
+
+Never resemble local contractor websites.
