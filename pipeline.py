@@ -11,14 +11,21 @@ FILES = [
     "site/faq.html",
     "site/about.html",
     "site/contact.html",
+    
     "site/assets/css/style.css",
     "site/assets/js/main.js",
+    
     "site/sitemap.xml",
     "site/robots.txt",
+    
     "site/templates/state-template.html",
     "site/templates/county-template.html",
     "site/templates/city-template.html",
+    "site/templates/article-template.html",
+
     "site/docs/architecture.md",
+    "site/docs/seo.md",
+    "site/docs/internal-linking.md",
 ]
 
 for prompt_file in sorted(Path("prompts").glob("*.md")):
