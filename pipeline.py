@@ -27,8 +27,9 @@ FILES = [
     "site/docs/seo.md",
     "site/docs/internal-linking.md",
 ]
+PROMPTS = sorted(Path("prompts").glob("*.md"))
 
-for prompt_file in sorted(Path("prompts").glob("*.md")):
+for prompt_file in PROMPTS:
     print(f"Running {prompt_file.name}")
     subprocess.run(
         [
