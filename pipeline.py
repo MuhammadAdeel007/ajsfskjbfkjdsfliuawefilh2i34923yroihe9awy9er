@@ -31,7 +31,7 @@ PROMPT_FILES = {
             "site/templates/state-template.html",
             "site/templates/county-template.html"
         ],
-        "read": ["site/index.html", "site/assets/css/style.css", "site/docs/architecture.md"]
+        "read": ["site/index.html", "site/assets/css/style.css", "site/docs/architecture.md", "site/docs/internal-linking.md"]
     },
     "06": {
         "edit": ["site/blog.html"],
@@ -69,15 +69,15 @@ PROMPT_FILES = {
         "read": ["site/index.html", "site/assets/css/style.css"]
     },
     "13": {
-        "edit": ["site/sitemap.xml", "site/robots.txt"],
-        "read": ["site/docs/seo.md", "site/index.html"]
+        "edit": ["site/sitemap.xml", "site/robots.txt", "site/docs/seo.md", "site/docs/internal-linking.md"],
+        "read": ["site/services.html", "site/index.html"]
     },
     "14": {
         "edit": [
             "site/templates/city-template.html",
             "site/templates/state-template.html"
         ],
-        "read": ["site/docs/seo.md", "site/docs/architecture.md", "site/index.html"]
+        "read": ["site/docs/seo.md", "site/docs/architecture.md", "site/docs/internal-linking.md", "site/index.html"]
     },
 }
 
