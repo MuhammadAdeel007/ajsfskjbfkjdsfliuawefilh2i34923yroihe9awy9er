@@ -136,7 +136,7 @@ def run_prompt(prompt_file, edit_files, read_files, retries=5):
 
     for attempt in range(retries):
         try:
-            subprocess.run(
+            result = subprocess.run(
                 [
                     "aider",
                     "--yes",
@@ -146,9 +146,12 @@ def run_prompt(prompt_file, edit_files, read_files, retries=5):
                     *read_args,
                     "--message", prompt_file.read_text()
                 ],
-                check=True
+                check=True,
+                capture_output=True
             )
-            return True
+            if result.returncode == 0:
+                return True
+            print(result.stderr)
         except subprocess.CalledProcessError as e:
             wait = 2 ** attempt * 30
             print(f"  Attempt {attempt + 1} failed. Retrying in {wait}s... ({e})")
@@ -177,16 +180,25 @@ def main():
         print(f"\nRunning {prompt_file.name}")
         print(f"  Edit : {edit_files}")
         print(f"  Read : {read_files}")
-
+        
+        status_before = subprocess.check_output(
+            ["git", "status", "--porcelain"]
+        ).decode()
+        
         try:
             success = run_prompt(prompt_file, edit_files, read_files)
         except Exception as e:
             print(f"  ERROR in {prompt_file.name}: {e}")
             continue
-            
-        if success:
+
+        status_after = subprocess.check_output(
+            ["git", "status", "--porcelain"]
+        ).decode()
+        
+        if success and status_before != status_after:
             update_project_state(prefix)
             git_commit(label)
+            time.sleep(15)
 
 
 if __name__ == "__main__":
