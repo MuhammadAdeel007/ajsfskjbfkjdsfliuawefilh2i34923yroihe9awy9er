@@ -152,7 +152,7 @@ def run_prompt(prompt_file, edit_files, read_files, retries=5):
                 capture_output=True,
                 text=True
             )
-             print("\n===== AIDER STDOUT =====")
+            print("\n===== AIDER STDOUT =====")
             print(result.stdout)
 
             print("\n===== AIDER STDERR =====")
