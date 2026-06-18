@@ -141,19 +141,30 @@ def run_prompt(prompt_file, edit_files, read_files, retries=5):
                     "aider",
                     "--yes",
                     "--no-stream", 
+                     "--no-auto-commits",
                     "--model", MODEL,
                     *edit_files,
                     *read_args,
-                    "--message", prompt_file.read_text()
+                    "--message", 
+                    prompt_file.read_text()
                 ],
                 check=True,
-                capture_output=True
+                capture_output=True,
+                text=True
             )
+             print("\n===== AIDER STDOUT =====")
+            print(result.stdout)
+
+            print("\n===== AIDER STDERR =====")
+            print(result.stderr)
+            
             if result.returncode == 0:
                 return True
-            print(result.stderr)
         except subprocess.CalledProcessError as e:
+            print(f"  STDERR: {e.stderr[-2000:] if e.stderr else 'none'}")
+            print(f"  STDOUT: {e.stdout[-2000:] if e.stdout else 'none'}")
             wait = 2 ** attempt * 30
+            print(f"\n  Attempt {attempt + 1} FAILED for {prompt_file.name}")
             print(f"  Attempt {attempt + 1} failed. Retrying in {wait}s... ({e})")
             time.sleep(wait)
 
@@ -184,6 +195,10 @@ def main():
         status_before = subprocess.check_output(
             ["git", "status", "--porcelain"]
         ).decode()
+
+        head_before = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"]
+        ).decode().strip()
         
         try:
             success = run_prompt(prompt_file, edit_files, read_files)
@@ -194,12 +209,40 @@ def main():
         status_after = subprocess.check_output(
             ["git", "status", "--porcelain"]
         ).decode()
-        
-        if success and status_before != status_after:
-            update_project_state(prefix)
-            git_commit(label)
-            time.sleep(15)
 
+        head_after = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"]
+        ).decode().strip()
+
+        # NEW: useful debugging output
+        print("\n===== GIT STATUS AFTER PROMPT =====")
+        subprocess.run(["git", "status"])
+        
+        print("\n===== GIT DIFF STAT =====")
+        subprocess.run(["git", "diff", "--stat"])
+        
+        print("\n===== HEAD CHECK =====")
+        print("Before:", head_before)
+        print("After :", head_after)
+
+        files_changed = status_before != status_after
+        head_changed = head_before != head_after
+        
+        if success:
+            if head_changed:
+                print(
+                    "WARNING: HEAD changed during aider run. "
+                    "Aider may still be auto-committing."
+                )
+
+             if files_changed:
+                update_project_state(prefix)
+                git_commit(label)
+                time.sleep(15)
+             else:
+                print(
+                    f"No file changes detected for {prompt_file.name}"
+                )
 
 if __name__ == "__main__":
     main()
