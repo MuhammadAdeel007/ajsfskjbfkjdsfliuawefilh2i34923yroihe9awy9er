@@ -1,9 +1,11 @@
-```python
+import re
 import subprocess
 import time
 from pathlib import Path
 
 MODEL = "openai/deepseek-ai/deepseek-v4-pro"
+
+LOCK_FILE = Path(".aider-run.lock")
 
 PROMPT_FILES = {
     "00": {
@@ -155,18 +157,42 @@ STATE_LABELS = {
 }
 
 
-def get_completed_prompts():
+def get_head(): 
+    return ( 
+        subprocess.check_output( 
+            ["git", "rev-parse", "HEAD"] 
+        ) 
+        .decode() 
+        .strip() 
+    ) 
+
+def repo_has_changes(): 
     result = subprocess.run(
-        ["git", "log", "--oneline"],
+        ["git", "diff", "--quiet", "--", "site"]
+    )
+    return result.returncode != 0
+
+    
+def get_completed_prompts(): 
+    result = subprocess.run(
+        ["git", "log", "--format=%s"],
         capture_output=True,
         text=True,
-        check=True
-    )
-    return result.stdout
-
+        check=True 
+    ) 
+    completed = set()
+    for line in result.stdout.splitlines(): 
+        match = re.match(r"AI:\s+([^\s\[]+)", line)
+        if match:
+            completed.add(match.group(1))
+            
+        return completed
 
 def git_commit(label):
-    subprocess.run(["git", "add", "site"], check=True)
+    subprocess.run(
+        ["git", "add", "site"],
+        check=True
+    )
 
     result = subprocess.run(
         ["git", "diff", "--cached", "--quiet"]
@@ -186,7 +212,8 @@ def git_commit(label):
     )
 
     summary = ", ".join(
-        Path(f).name for f in changed_files[:5]
+        Path(f).name 
+        for f in changed_files[:5]
     )
 
     commit_msg = f"AI: {label}"
@@ -210,8 +237,11 @@ def update_project_state(prefix):
     if state_file.exists():
         current = state_file.read_text()
     else:
-        current = "# Project State\n\n## Completed\n"
-
+        current = (
+            "# Project State\n\n"
+            "## Completed\n"
+        )
+        
     entry = f"- [x] {label}"
 
     if entry not in current:
@@ -219,7 +249,10 @@ def update_project_state(prefix):
             current += "\n"
 
         current += entry + "\n"
-        state_file.write_text(current)
+        state_file.write_text(
+            current,
+            encoding="utf-8"
+        )
 
 
 def is_rate_limited(output):
@@ -230,10 +263,33 @@ def is_rate_limited(output):
         "'status': 429",
     ]
 
-    return any(marker in output for marker in markers)
+    return any(
+        marker in output
+        for marker in markers
+    )
 
+def validate_edit_files(edit_files):
+    missing = [ 
+        f for f in edit_files 
+        if not Path(f).exists()
+    ] 
+    
+    if missing: 
+        raise FileNotFoundError( 
+            f"Missing edit files: {missing}" 
+        )
 
 def run_prompt(prompt_file, edit_files, read_files, retries=5):
+    validate_edit_files(edit_files) 
+    prompt_text = prompt_file.read_text(
+        encoding="utf-8"
+    ).strip() 
+    
+    if not prompt_text: 
+        raise ValueError( 
+            f"Empty prompt: {prompt_file}" 
+        )
+        
     read_args = []
 
     for f in read_files:
@@ -287,20 +343,19 @@ def run_prompt(prompt_file, edit_files, read_files, retries=5):
             return True
 
         except Exception as e:
+            print(
+                f"\nERROR: "
+                f"{type(e).__name__}"
+            )
+            
+            print(str(e))
+            
             attempt += 1
 
             if attempt >= retries:
-                raise RuntimeError(
-                    f"Failed after {retries} attempts"
-                ) from e
+                raise RuntimeError( f"Failed after {retries} attempts" ) from e
 
-            wait = min(
-                600,
-                30 * (2 ** min(attempt - 1, 5))
-            )
-
-            print(f"Reason: {e}")
-
+            wait = min(600,30 * (2 ** min(attempt - 1, 5)))
             stdout = getattr(e, "stdout", None)
 
             print(
@@ -309,8 +364,7 @@ def run_prompt(prompt_file, edit_files, read_files, retries=5):
             )
 
             print(
-                f"\nAttempt {attempt} FAILED "
-                f"for {prompt_file.name}"
+                f"\nAttempt {attempt} FAILED for {prompt_file.name}"
             )
 
             print(
@@ -321,33 +375,36 @@ def run_prompt(prompt_file, edit_files, read_files, retries=5):
 
     return False
 
-
 def main():
-    prompts = sorted(
-        Path("prompts").glob("*.md")
-    )
-
-    completed = get_completed_prompts()
-
-    for prompt_file in prompts:
-        label = prompt_file.stem
-
-        if f"AI: {label}" in completed:
-            print(
-                f"Skipping {prompt_file.name} "
-                f"(already committed)"
-            )
-            continue
-
-        prefix = label[:2]
-
-        config = PROMPT_FILES.get(
-            prefix,
-            {
-                "edit": ["site/index.html"],
-                "read": []
-            }
+    if LOCK_FILE.exists(): 
+        raise RuntimeError( "Another run is active." )
+    LOCK_FILE.touch()
+    
+    
+    try:
+        prompts = sorted(
+            Path("prompts").glob("*.md")
         )
+
+        completed = get_completed_prompts()
+
+        for prompt_file in prompts:
+            if label in completed:
+                print(
+                    f"Skipping {prompt_file.name} "
+                    f"(already committed)"
+                )
+                continue
+
+            prefix = label[:2]
+
+            config = PROMPT_FILES.get(
+                prefix,
+                {
+                    "edit": ["site/index.html"],
+                    "read": []
+                }
+            )
 
         edit_files = config["edit"]
         read_files = config["read"]
@@ -356,62 +413,28 @@ def main():
         print(f"Edit : {edit_files}")
         print(f"Read : {read_files}")
 
-        status_before = subprocess.check_output(
-            ["git", "status", "--porcelain"]
-        ).decode()
+        head_before = get_head()
+        run_prompt(prompt_file, edit_files, read_files)
+        head_after = get_head()
 
-        head_before = (
-            subprocess.check_output(
-                ["git", "rev-parse", "HEAD"]
-            )
-            .decode()
-            .strip()
-        )
+        print( "\n===== GIT STAT =====" )
+        subprocess.run( ["git", "status"] )
 
-        run_prompt(
-            prompt_file,
-            edit_files,
-            read_files
-        )
-
-        status_after = subprocess.check_output(
-            ["git", "status", "--porcelain"]
-        ).decode()
-
-        head_after = (
-            subprocess.check_output(
-                ["git", "rev-parse", "HEAD"]
-            )
-            .decode()
-            .strip()
-        )
-
-        print("\n===== GIT STATUS AFTER PROMPT =====")
-        subprocess.run(["git", "status"])
-
-        print("\n===== GIT DIFF STAT =====")
-        subprocess.run(["git", "diff", "--stat"])
+        print( "\n===== GIT DIFF " "STAT =====" )
+        subprocess.run( ["git", "diff", "--stat"] )
 
         print("\n===== HEAD CHECK =====")
         print("Before:", head_before)
         print("After :", head_after)
 
-        files_changed = (
-            status_before != status_after
-        )
-
-        head_changed = (
-            head_before != head_after
-        )
-
-        if head_changed:
+        if head_before != head_after:
             print(
                 "WARNING: HEAD changed during "
                 "aider run. Aider may still be "
                 "auto-committing."
             )
 
-        if files_changed:
+        if repo_has_changes():
             update_project_state(prefix)
             git_commit(label)
             time.sleep(15)
@@ -420,8 +443,8 @@ def main():
                 f"No file changes detected "
                 f"for {prompt_file.name}"
             )
-
+    finally:
+        LOCK_FILE.unlink( missing_ok=True )
 
 if __name__ == "__main__":
     main()
-```
