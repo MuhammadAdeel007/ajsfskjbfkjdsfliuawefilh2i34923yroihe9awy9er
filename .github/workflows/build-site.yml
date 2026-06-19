@@ -59,6 +59,8 @@ jobs:
           touch site/docs/architecture.md
           touch site/docs/seo.md
           touch site/docs/internal-linking.md
+          touch site/docs/global-rules.md
+          touch site/docs/project-state.md
           
       - name: Commit Changes
         run: |
