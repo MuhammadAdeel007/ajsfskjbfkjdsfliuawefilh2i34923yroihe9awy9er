@@ -1,94 +1,116 @@
+"""
+run_aider.py — Sequentially run numbered aider prompts, commit results, and
+               track progress in site/docs/project-state.md.
+"""
+
+import logging
 import re
 import subprocess
+import sys
 import time
 from pathlib import Path
 
-MODEL = "openai/deepseek-ai/deepseek-v4-pro"
+# ── Configuration ──────────────────────────────────────────────────────────────
 
-LOCK_FILE = Path(".aider-run.lock")
+MODEL            = "openai/deepseek-ai/deepseek-v4-pro"
+LOCK_FILE        = Path(".aider-run.lock")
+BASE_RETRY_DELAY = 30    # seconds (doubles each attempt)
+MAX_RETRY_DELAY  = 600   # seconds cap
+POST_COMMIT_SLEEP = 15   # seconds between prompts after a commit
 
-PROMPT_FILES = {
+# ── Logging ────────────────────────────────────────────────────────────────────
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s  %(levelname)-8s  %(message)s",
+    datefmt="%H:%M:%S",
+)
+log = logging.getLogger(__name__)
+
+# ── Prompt / file map ──────────────────────────────────────────────────────────
+
+PROMPT_FILES: dict[str, dict[str, list[str]]] = {
     "00": {
         "edit": ["site/docs/architecture.md"],
-        "read": ["site/docs/project-state.md"]
+        "read": ["site/docs/project-state.md"],
     },
     "01": {
         "edit": ["site/docs/architecture.md"],
-        "read": ["site/docs/project-state.md"]
+        "read": ["site/docs/project-state.md"],
     },
     "02": {
         "edit": ["site/assets/css/style.css"],
-        "read": ["site/docs/architecture.md", "site/docs/project-state.md"]
+        "read": ["site/docs/architecture.md", "site/docs/project-state.md"],
     },
     "03": {
         "edit": ["site/index.html"],
         "read": [
             "site/docs/architecture.md",
             "site/assets/css/style.css",
-            "site/docs/project-state.md"
-        ]
+            "site/docs/project-state.md",
+        ],
     },
     "04": {
         "edit": ["site/services.html"],
         "read": [
             "site/index.html",
             "site/assets/css/style.css",
-            "site/docs/project-state.md"
-        ]
+            "site/docs/project-state.md",
+        ],
     },
     "05": {
         "edit": [
             "site/templates/city-template.html",
             "site/templates/state-template.html",
-            "site/templates/county-template.html"
+            "site/templates/county-template.html",
         ],
         "read": [
             "site/index.html",
             "site/assets/css/style.css",
             "site/docs/architecture.md",
             "site/docs/internal-linking.md",
-            "site/docs/project-state.md"
-        ]
+            "site/docs/project-state.md",
+        ],
     },
     "06": {
         "edit": ["site/blog.html"],
         "read": [
             "site/index.html",
             "site/assets/css/style.css",
-            "site/docs/project-state.md"
-        ]
+            "site/docs/project-state.md",
+        ],
     },
     "07": {
         "edit": ["site/templates/article-template.html"],
         "read": [
             "site/blog.html",
             "site/assets/css/style.css",
-            "site/docs/project-state.md"
-        ]
+            "site/docs/project-state.md",
+        ],
     },
     "08": {
         "edit": ["site/faq.html"],
         "read": [
             "site/index.html",
             "site/assets/css/style.css",
-            "site/docs/project-state.md"
-        ]
+            "site/docs/project-state.md",
+        ],
     },
     "09": {
         "edit": ["site/about.html"],
         "read": [
             "site/index.html",
             "site/assets/css/style.css",
-            "site/docs/project-state.md"
-        ]
+            "site/docs/project-state.md",
+        ],
     },
     "10": {
         "edit": ["site/contact.html"],
         "read": [
             "site/index.html",
             "site/assets/css/style.css",
-            "site/docs/project-state.md"
-        ]
+            "site/docs/project-state.md",
+        ],
     },
     "11": {
         "edit": ["site/assets/css/style.css"],
@@ -99,46 +121,46 @@ PROMPT_FILES = {
             "site/faq.html",
             "site/about.html",
             "site/contact.html",
-            "site/docs/project-state.md"
-        ]
+            "site/docs/project-state.md",
+        ],
     },
     "12": {
         "edit": ["site/assets/js/main.js"],
         "read": [
             "site/index.html",
             "site/assets/css/style.css",
-            "site/docs/project-state.md"
-        ]
+            "site/docs/project-state.md",
+        ],
     },
     "13": {
         "edit": [
             "site/sitemap.xml",
             "site/robots.txt",
             "site/docs/seo.md",
-            "site/docs/internal-linking.md"
+            "site/docs/internal-linking.md",
         ],
         "read": [
             "site/services.html",
             "site/index.html",
-            "site/docs/project-state.md"
-        ]
+            "site/docs/project-state.md",
+        ],
     },
     "14": {
         "edit": [
             "site/templates/city-template.html",
-            "site/templates/state-template.html"
+            "site/templates/state-template.html",
         ],
         "read": [
             "site/docs/seo.md",
             "site/docs/architecture.md",
             "site/docs/internal-linking.md",
             "site/index.html",
-            "site/docs/project-state.md"
-        ]
+            "site/docs/project-state.md",
+        ],
     },
 }
 
-STATE_LABELS = {
+STATE_LABELS: dict[str, str] = {
     "00": "Global rules defined",
     "01": "Architecture documented",
     "02": "CSS base created",
@@ -156,300 +178,233 @@ STATE_LABELS = {
     "14": "Programmatic SEO templates finalized",
 }
 
+# ── Git helpers ────────────────────────────────────────────────────────────────
 
-def get_head(): 
-    return ( 
-        subprocess.check_output( 
-            ["git", "rev-parse", "HEAD"] 
-        ) 
-        .decode() 
-        .strip() 
-    ) 
+def get_head() -> str:
+    return subprocess.check_output(["git", "rev-parse", "HEAD"]).decode().strip()
 
-def repo_has_changes(): 
-    result = subprocess.run(
-        ["git", "diff", "--quiet", "--", "site"]
-    )
+
+def repo_has_changes() -> bool:
+    result = subprocess.run(["git", "diff", "--quiet", "--", "site"])
     return result.returncode != 0
 
-    
-def get_completed_prompts(): 
+
+def get_completed_prompts() -> set[str]:
+    """Return the set of full labels already present in git history."""
     result = subprocess.run(
         ["git", "log", "--format=%s"],
         capture_output=True,
         text=True,
-        check=True 
-    ) 
-    completed = set()
-    for line in result.stdout.splitlines(): 
-        match = re.match(r"AI:\s+([^\s\[]+)", line)
+        check=True,
+    )
+    completed: set[str] = set()
+    for line in result.stdout.splitlines():
+        # Commit format: "AI: <full label> [file1, file2]"
+        # Capture everything between "AI: " and an optional " [" or end-of-line.
+        match = re.match(r"AI:\s+(.+?)(?:\s+\[|$)", line)
         if match:
-            completed.add(match.group(1))
-            
-        return completed
+            completed.add(match.group(1).strip())
+    # FIX: return is now outside the for-loop so all lines are processed.
+    return completed
 
-def git_commit(label):
-    subprocess.run(
-        ["git", "add", "site"],
-        check=True
-    )
 
-    result = subprocess.run(
-        ["git", "diff", "--cached", "--quiet"]
-    )
+def git_commit(label: str) -> None:
+    subprocess.run(["git", "add", "site"], check=True)
 
-    if result.returncode == 0:
-        print(f"No changes to commit for: {label}")
+    if subprocess.run(["git", "diff", "--cached", "--quiet"]).returncode == 0:
+        log.info("No staged changes to commit for: %s", label)
         return
 
     changed_files = (
-        subprocess.check_output(
-            ["git", "diff", "--cached", "--name-only"]
-        )
+        subprocess.check_output(["git", "diff", "--cached", "--name-only"])
         .decode()
         .strip()
         .splitlines()
     )
+    summary   = ", ".join(Path(f).name for f in changed_files[:5])
+    commit_msg = f"AI: {label}" + (f" [{summary}]" if summary else "")
 
-    summary = ", ".join(
-        Path(f).name 
-        for f in changed_files[:5]
-    )
-
-    commit_msg = f"AI: {label}"
-
-    if summary:
-        commit_msg += f" [{summary}]"
-
-    subprocess.run(
-        ["git", "commit", "-m", commit_msg],
-        check=True
-    )
-
-    print(f"Committed: {commit_msg}")
+    subprocess.run(["git", "commit", "-m", commit_msg], check=True)
+    log.info("Committed: %s", commit_msg)
 
 
-def update_project_state(prefix):
-    label = STATE_LABELS.get(prefix, prefix)
-
+def update_project_state(prefix: str) -> None:
+    label      = STATE_LABELS.get(prefix, prefix)
     state_file = Path("site/docs/project-state.md")
 
-    if state_file.exists():
-        current = state_file.read_text()
-    else:
-        current = (
-            "# Project State\n\n"
-            "## Completed\n"
-        )
-        
-    entry = f"- [x] {label}"
-
-    if entry not in current:
-        if not current.endswith("\n"):
-            current += "\n"
-
-        current += entry + "\n"
-        state_file.write_text(
-            current,
-            encoding="utf-8"
-        )
-
-
-def is_rate_limited(output):
-    markers = [
-        "RateLimitError",
-        "Error code: 429",
-        "Too Many Requests",
-        "'status': 429",
-    ]
-
-    return any(
-        marker in output
-        for marker in markers
+    current = (
+        state_file.read_text(encoding="utf-8")
+        if state_file.exists()
+        else "# Project State\n\n## Completed\n"
     )
 
-def validate_edit_files(edit_files):
-    missing = [ 
-        f for f in edit_files 
-        if not Path(f).exists()
-    ] 
-    
-    if missing: 
-        raise FileNotFoundError( 
-            f"Missing edit files: {missing}" 
+    entry = f"- [x] {label}"
+    if entry not in current:
+        state_file.write_text(
+            current.rstrip("\n") + "\n" + entry + "\n",
+            encoding="utf-8",
         )
 
-def run_prompt(prompt_file, edit_files, read_files, retries=5):
-    validate_edit_files(edit_files) 
-    prompt_text = prompt_file.read_text(
-        encoding="utf-8"
-    ).strip() 
-    
-    if not prompt_text: 
-        raise ValueError( 
-            f"Empty prompt: {prompt_file}" 
-        )
-        
-    read_args = []
+# ── Aider helpers ──────────────────────────────────────────────────────────────
 
+_RATE_LIMIT_MARKERS = (
+    "RateLimitError",
+    "Error code: 429",
+    "Too Many Requests",
+    "'status': 429",
+)
+
+
+def is_rate_limited(output: str) -> bool:
+    return any(marker in output for marker in _RATE_LIMIT_MARKERS)
+
+
+def validate_edit_files(
+    edit_files: list[str],
+    *,
+    allow_new: bool = False,
+) -> None:
+    """Raise FileNotFoundError for any missing edit-files unless allow_new=True."""
+    if allow_new:
+        return
+    missing = [f for f in edit_files if not Path(f).exists()]
+    if missing:
+        raise FileNotFoundError(f"Missing edit files: {missing}")
+
+
+def run_prompt(
+    prompt_file: Path,
+    edit_files: list[str],
+    read_files: list[str],
+    retries: int = 5,
+    allow_new_files: bool = True,
+) -> bool:
+    """Run aider for one prompt file, retrying on transient errors."""
+    # FIX: allow_new_files=True by default so newly-created output files
+    #      (e.g. sitemap.xml) don't cause a FileNotFoundError.
+    validate_edit_files(edit_files, allow_new=allow_new_files)
+
+    prompt_text = prompt_file.read_text(encoding="utf-8").strip()
+    if not prompt_text:
+        raise ValueError(f"Empty prompt: {prompt_file}")
+
+    read_args: list[str] = []
     for f in read_files:
         path = Path(f)
-
         if path.exists() and path.stat().st_size > 0:
             read_args += ["--read", f]
 
-    attempt = 0
+    cmd = [
+        "aider",
+        "--yes",
+        "--no-stream",
+        "--no-auto-commits",
+        "--model", MODEL,
+        *edit_files,
+        *read_args,
+        "--message", prompt_text,   # reuse already-read text; no second disk read
+    ]
 
-    while attempt < retries:
+    for attempt in range(1, retries + 1):
         try:
-            result = subprocess.run(
-                [
-                    "aider",
-                    "--yes",
-                    "--no-stream",
-                    "--no-auto-commits",
-                    "--model",
-                    MODEL,
-                    *edit_files,
-                    *read_args,
-                    "--message",
-                    prompt_file.read_text(),
-                ],
-                capture_output=True,
-                text=True,
-            )
-
+            result = subprocess.run(cmd, capture_output=True, text=True)
             stdout = result.stdout or ""
             stderr = result.stderr or ""
             output = stdout + stderr
 
-            print("\n===== AIDER STDOUT =====")
-            print(stdout)
-
-            print("\n===== AIDER STDERR =====")
-            print(stderr)
+            log.info("===== AIDER STDOUT =====\n%s", stdout)
+            if stderr:
+                log.warning("===== AIDER STDERR =====\n%s", stderr)
 
             if is_rate_limited(output):
-                raise RuntimeError(
-                    "Rate limited by provider (429)"
-                )
+                raise RuntimeError("Rate limited by provider (429)")
 
             if result.returncode != 0:
-                raise RuntimeError(
-                    f"Aider exited with code "
-                    f"{result.returncode}"
-                )
+                raise RuntimeError(f"Aider exited with code {result.returncode}")
 
             return True
 
-        except Exception as e:
-            print(
-                f"\nERROR: "
-                f"{type(e).__name__}"
+        except Exception as exc:
+            log.error(
+                "Attempt %d/%d failed — %s: %s",
+                attempt, retries, type(exc).__name__, exc,
             )
-            
-            print(str(e))
-            
-            attempt += 1
-
             if attempt >= retries:
-                raise RuntimeError( f"Failed after {retries} attempts" ) from e
+                raise RuntimeError(f"Failed after {retries} attempts") from exc
 
-            wait = min(600,30 * (2 ** min(attempt - 1, 5)))
-            stdout = getattr(e, "stdout", None)
-
-            print(
-                f"STDOUT: "
-                f"{stdout[-2000:] if stdout else 'none'}"
-            )
-
-            print(
-                f"\nAttempt {attempt} FAILED for {prompt_file.name}"
-            )
-
-            print(
-                f"Retrying in {wait}s..."
-            )
-
+            wait = min(MAX_RETRY_DELAY, BASE_RETRY_DELAY * (2 ** min(attempt - 1, 5)))
+            log.info("Retrying in %ds…", wait)
             time.sleep(wait)
 
-    return False
+    return False  # unreachable, satisfies type-checkers
 
-def main():
-    if LOCK_FILE.exists(): 
-        raise RuntimeError( "Another run is active." )
+# ── Main ───────────────────────────────────────────────────────────────────────
+
+def main() -> None:
+    if LOCK_FILE.exists():
+        raise RuntimeError("Another run is already active (lock file present).")
+
     LOCK_FILE.touch()
-    
-    
     try:
-        prompts = sorted(
-            Path("prompts").glob("*.md")
-        )
+        prompts = sorted(Path("prompts").glob("*.md"))
+        if not prompts:
+            log.warning("No prompt files found in prompts/")
+            return
 
         completed = get_completed_prompts()
+        log.info("Already completed: %s", completed or "none")
 
-        
-    
+        # FIX: entire body — edit_files, read_files, run_prompt, commit —
+        #      is now correctly indented inside the for-loop.
         for prompt_file in prompts:
             prefix = prompt_file.stem[:2]
-            label = STATE_LABELS.get(prefix, prefix)
-            
-            if prefix in completed:
-                print(
-                    f"Skipping {prompt_file.name} "
-                    f"(already committed)"
-                )
+            label  = STATE_LABELS.get(prefix, prefix)
+
+            # FIX: compare label (e.g. "Homepage built") against completed set,
+            #      not prefix ("03"), because commits store the label.
+            if label in completed:
+                log.info("Skipping %s — already committed.", prompt_file.name)
                 continue
 
-            prefix = label[:2]
-
+            # FIX: removed `prefix = label[:2]` which corrupted the prefix.
             config = PROMPT_FILES.get(
                 prefix,
-                {
-                    "edit": ["site/index.html"],
-                    "read": []
-                }
+                {"edit": ["site/index.html"], "read": []},
             )
+            edit_files = config["edit"]
+            read_files = config["read"]
 
-        edit_files = config["edit"]
-        read_files = config["read"]
+            log.info("Running  : %s", prompt_file.name)
+            log.info("Edit     : %s", edit_files)
+            log.info("Read     : %s", read_files)
 
-        print(f"\nRunning {prompt_file.name}")
-        print(f"Edit : {edit_files}")
-        print(f"Read : {read_files}")
+            head_before = get_head()
+            run_prompt(prompt_file, edit_files, read_files)
+            head_after  = get_head()
 
-        head_before = get_head()
-        run_prompt(prompt_file, edit_files, read_files)
-        head_after = get_head()
+            if head_before != head_after:
+                log.warning(
+                    "HEAD changed during aider run — aider may be auto-committing "
+                    "despite --no-auto-commits."
+                )
 
-        print( "\n===== GIT STAT =====" )
-        subprocess.run( ["git", "status"] )
+            log.info("===== GIT STATUS =====")
+            subprocess.run(["git", "status"])
+            subprocess.run(["git", "diff", "--stat"])
 
-        print( "\n===== GIT DIFF " "STAT =====" )
-        subprocess.run( ["git", "diff", "--stat"] )
+            if repo_has_changes():
+                update_project_state(prefix)
+                git_commit(label)
+                time.sleep(POST_COMMIT_SLEEP)
+            else:
+                log.info("No file changes detected for %s", prompt_file.name)
 
-        print("\n===== HEAD CHECK =====")
-        print("Before:", head_before)
-        print("After :", head_after)
-
-        if head_before != head_after:
-            print(
-                "WARNING: HEAD changed during "
-                "aider run. Aider may still be "
-                "auto-committing."
-            )
-
-        if repo_has_changes():
-            update_project_state(prefix)
-            git_commit(label)
-            time.sleep(15)
-        else:
-            print(
-                f"No file changes detected "
-                f"for {prompt_file.name}"
-            )
+    except KeyboardInterrupt:
+        log.warning("Interrupted by user — exiting cleanly.")
+        sys.exit(1)
     finally:
-        LOCK_FILE.unlink( missing_ok=True )
+        LOCK_FILE.unlink(missing_ok=True)
+
 
 if __name__ == "__main__":
     main()
