@@ -296,8 +296,8 @@ def run_prompt(
         raise ValueError(f"Empty prompt: {prompt_file}")
 
     file_args: list[str] = []
-        for f in edit_files:
-            file_args += ["--file", f]
+    for f in edit_files:
+        file_args += ["--file", f]
      
     read_args: list[str] = []
     for f in read_files:
