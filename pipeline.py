@@ -327,6 +327,8 @@ def run_prompt(
         # "--no-stream",
         "--no-auto-commits",
         "--verbose",
+        "--map-tokens",
+        "0",
         "--model",
         MODEL,
         *file_args,
