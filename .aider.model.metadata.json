@@ -1,0 +1,10 @@
+{
+    "openai/deepseek-ai/deepseek-v4-pro": {
+        "max_input_tokens": 1048576,
+        "max_output_tokens": 16384,
+        "input_cost_per_token": 0.00000014,
+        "output_cost_per_token": 0.00000028,
+        "litellm_provider": "openai"
+    }
+}
+
