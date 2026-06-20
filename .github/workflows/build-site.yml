@@ -78,7 +78,8 @@ jobs:
           import inspect
           import aider.coders.editblock_prompts as ep
           import aider.coders.wholefile_prompts as wp
-          
+
+          CUSTOM_SYSTEM = '''You are a senior front-end architect and SEO specialist. You write production-quality HTML, CSS, and documentation. When editing files, return the complete file content. Never truncate. Reply in English.'''
           def patch_file(path):
               with open(path, "r") as f:
                   content = f.read()
@@ -92,12 +93,24 @@ jobs:
                       for item in node.body:
                           if isinstance(item, ast.Assign):
                               for target in item.targets:
-                                  if isinstance(target, ast.Name) and target.id == "example_messages":
-                                      start = item.lineno - 1      # 0-indexed
-                                      end   = item.end_lineno      # 0-indexed exclusive
-                                      indent = len(lines[start]) - len(lines[start].lstrip())
-                                      replacements.append((start, end, " " * indent + "example_messages = []\n"))
+                                  if isinstance(target, ast.Name):
+                                      indent = len(lines[item.lineno - 1]) - len(lines[item.lineno - 1].lstrip())
+                                      pad = " " * indent
           
+                                      if target.id == "example_messages":
+                                          replacements.append((
+                                              item.lineno - 1,
+                                              item.end_lineno,
+                                              pad + 'example_messages = []\n'
+                                          ))
+          
+                                      elif target.id == "main_system":
+                                          replacements.append((
+                                              item.lineno - 1,
+                                              item.end_lineno,
+                                              pad + f'main_system = """{CUSTOM_SYSTEM}"""\n'
+                                          ))
+
               # Apply in reverse so line numbers stay valid
               for start, end, replacement in sorted(replacements, reverse=True):
                   lines[start:end] = [replacement]
