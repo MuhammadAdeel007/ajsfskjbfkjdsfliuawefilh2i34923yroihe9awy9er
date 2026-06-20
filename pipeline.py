@@ -9,6 +9,8 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+import os
+
 
 # ── Configuration ──────────────────────────────────────────────────────────────
 
@@ -17,6 +19,7 @@ LOCK_FILE        = Path(".aider-run.lock")
 BASE_RETRY_DELAY = 120    # seconds (doubles each attempt)
 MAX_RETRY_DELAY  = 900   # seconds cap
 POST_COMMIT_SLEEP = 15   # seconds between prompts after a commit
+os.environ["LITELLM_LOG"] = "DEBUG"
 
 # ── Logging ────────────────────────────────────────────────────────────────────
 
@@ -310,7 +313,9 @@ def run_prompt(
         "--yes",
         # "--no-stream",
         "--no-auto-commits",
-        "--model", MODEL,
+        "--verbose",
+        "--model",
+        MODEL,
         *edit_files,
         *read_args,
         "--message", 
