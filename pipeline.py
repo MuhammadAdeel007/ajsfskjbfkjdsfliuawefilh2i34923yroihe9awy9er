@@ -21,19 +21,19 @@ POST_COMMIT_SLEEP = 15   # seconds between prompts after a commit
 os.environ["LITELLM_LOG"] = "DEBUG"
 
 # ── Logging ────────────────────────────────────────────────────────────────────
-log.info(
-    "Repository root: %s",
-    subprocess.check_output(
-        ["git", "rev-parse", "--show-toplevel"]
-    ).decode().strip()
-)
-
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s  %(levelname)-8s  %(message)s",
     datefmt="%H:%M:%S",
 )
 log = logging.getLogger(__name__)
+
+log.info(
+    "Repository root: %s",
+    subprocess.check_output(
+        ["git", "rev-parse", "--show-toplevel"]
+    ).decode().strip()
+)
 
 # ── Prompt / file map ──────────────────────────────────────────────────────────
 
