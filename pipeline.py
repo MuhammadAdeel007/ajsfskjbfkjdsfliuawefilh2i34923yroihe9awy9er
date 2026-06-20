@@ -351,6 +351,8 @@ def run_prompt(
             if result.returncode != 0:
                 raise RuntimeError(f"Aider exited with code {result.returncode}")
 
+            time.sleep(600)
+          
             return True
 
         except Exception as exc:
