@@ -361,11 +361,16 @@ def run_prompt(
             try:
                 process.wait(timeout=600)
                 for f in edit_files:
-                  p = Path(f)
-                  if not p.exists():
-                      raise RuntimeError(f"{f} was not created")
-                  size = p.stat().st_size
-                  log.info("Post-aider file check: %s (%d bytes)",f,size)
+                    p = Path(f)
+                    if not p.exists():
+                        raise RuntimeError(f"{f} was not created")
+
+                    content = p.read_text(encoding="utf-8",errors="ignore)
+                    log.info("Post-aider file check: %s (%d bytes, %d chars)",f,p.stat().st_size,len(content))
+                    log.info("Preview of %s:\n%s",f,repr(content[:300]))                  
+
+                    size = p.stat().st_size
+                    log.info("Post-aider file check: %s (%d bytes)",f,size)
             except subprocess.TimeoutExpired:
                 process.kill()
                 process.wait()          # reap the zombie
