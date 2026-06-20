@@ -292,7 +292,11 @@ def validate_edit_files(
     if missing:
         raise FileNotFoundError(f"Missing edit files: {missing}")
 
-
+def git_push() -> None:
+    log.info("Pushing to GitHub...")
+    subprocess.run(["git", "push", "origin", "HEAD:main"],check=True,)
+    log.info("Push successful.")
+  
 def run_prompt(
     prompt_file: Path,
     edit_files: list[str],
@@ -406,6 +410,7 @@ def run_prompt(
 
     return False  # unreachable, satisfies type-checkers
 
+
 # ── Main ───────────────────────────────────────────────────────────────────────
 
 def main() -> None:
@@ -473,12 +478,33 @@ def main() -> None:
                 update_project_state(prefix)
                 for f in edit_files:
                       p = Path(f)
+                      if not p.exists():
+                          raise RuntimeError(f"{f} disappeared before commit")
+                      
                       content = p.read_text(encoding="utf-8",errors="ignore")
               
                       log.info("%s => %d chars",f,len(content))
                       if not content.strip():
                           raise RuntimeError(f"{f} is empty before commit")
+
+
+                log.info("===== PRE-COMMIT STATUS =====")
+                subprocess.run(["git", "status"])
+                subprocess.run(["git", "diff", "--cached", "--name-only"])        
+                
                 git_commit(label)
+
+                log.info("===== VERIFYING COMMIT =====")
+                subprocess.run(["git","show","--stat","HEAD"])
+                log.info(
+                    "HEAD commit: %s",
+                    subprocess.check_output(["git", "rev-parse", "HEAD"],text=True).strip()
+                )
+                git_push()
+                log.info("Push completed successfully.")
+              
+                # subprocess.run(["git","show","HEAD:site/docs/global-rules.md"])
+              
                 time.sleep(POST_COMMIT_SLEEP)
             else:
                 raise RuntimeError(
