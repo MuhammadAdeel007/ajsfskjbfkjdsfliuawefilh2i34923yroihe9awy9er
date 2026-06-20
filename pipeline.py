@@ -176,7 +176,7 @@ def get_head() -> str:
 
 
 def repo_has_changes() -> bool:
-    result = subprocess.run(["git", "diff", "--quiet", "--", "site"])
+    result = subprocess.run(["git", "diff", "HEAD", "--quiet", "--", "site"])
     return result.returncode != 0
 
 
@@ -317,38 +317,50 @@ def run_prompt(
         prompt_text,   # reuse already-read text; no second disk read
     ]
 
+    # ── Debug: print everything being sent to the model ──────────────────────
+    print("\n" + "=" * 60)
+    print("PROMPT FILE :", prompt_file.name)
+    print("EDIT FILES  :", edit_files)
+    print("READ FILES  :", [f for f in read_files if Path(f).exists() and Path(f).stat().st_size > 0])
+    print("MODEL       :", MODEL)
+    print("─" * 60)
+    print("PROMPT TEXT :")
+    print(prompt_text)
+    print("=" * 60 + "\n")
+    # ─────────────────────────────────────────────────────────────────────────
+
     for attempt in range(1, retries + 1):
         try:
             log.info("Starting Aider session. Streaming output below...\n" + "="*40)
-            # result = subprocess.run(cmd, capture_output=True, text=True)
-            process = subprocess.Popen(cmd, stdout=subprocess.PIPE,
+            process = subprocess.Popen(cmd, 
+                stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT, # Merge errors into standard output
                 text=True,
-                bufsize=1
+                bufsize=1,
             )
-            full_output = []
+            full_output: list[str] = []
             if process.stdout:
                 for line in process.stdout:
                     sys.stdout.write(line)
                     sys.stdout.flush()
                     full_output.append(line)
+            try:
+                process.wait(timeout=600)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait()          # reap the zombie
+                raise RuntimeError(
+                    f"Aider timed out after 600s — "
+                    "possible network hang or interactive prompt"
+                )
 
-            process.wait()
             output = "".join(full_output)
             print("="*40) # Visually close the Aider session output
-
-          
-            # stdout = result.stdout or ""
-            # stderr = result.stderr or ""
-            # output = stdout + stderr          
-            # log.info("===== AIDER STDOUT =====\n%s", stdout)
-            # if stderr:
-            #     log.warning("===== AIDER STDERR =====\n%s", stderr)
 
             if is_rate_limited(output):
                 raise RuntimeError("Rate limited by provider (429)")
 
-            if result.returncode != 0:
+            if process.returncode != 0:
                 raise RuntimeError(f"Aider exited with code {result.returncode}")
 
             time.sleep(600)
@@ -436,7 +448,11 @@ def main() -> None:
                 git_commit(label)
                 time.sleep(POST_COMMIT_SLEEP)
             else:
-                log.info("No file changes detected for %s", prompt_file.name)
+                raise RuntimeError(
+                    f"Pipeline halted after '{label}' — aider ran successfully "
+                    "but made no file changes. Check the prompt or model output "
+                    "above. Iteration will not advance."
+                )
 
     except KeyboardInterrupt:
         log.warning("Interrupted by user — exiting cleanly.")
