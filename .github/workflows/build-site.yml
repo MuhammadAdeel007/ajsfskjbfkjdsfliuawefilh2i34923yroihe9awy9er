@@ -67,6 +67,36 @@ jobs:
           git config user.name "github-actions"
           git config user.email "actions@github.com"
           git commit --allow-empty -m "Initial commit to establish git history"
+          
+      - name: Patch aider prompts
+        run: |
+          python - <<'EOF'
+          import re
+          import aider.coders.editblock_prompts as ep
+          import aider.coders.wholefile_prompts as wp
+          import inspect
+          
+          files = [
+              inspect.getfile(ep),
+              inspect.getfile(wp),
+          ]
+          
+          for path in files:
+              with open(path, "r") as f:
+                  content = f.read()
+          
+              content = re.sub(
+                  r'example_messages\s*=\s*\[.*?\]',
+                  'example_messages = []',
+                  content,
+                  flags=re.DOTALL
+              )
+          
+              with open(path, "w") as f:
+                  f.write(content)
+          
+              print(f"Patched: {path}")
+          EOF
 
       - name: Run AI Pipeline
         run: |
