@@ -256,9 +256,12 @@ def is_rate_limited(output: str) -> bool:
 
 
 def check_edit_files_have_content(edit_files: list[str], label: str) -> None:
+    PIPELINE_MANAGED = {"site/docs/project-state.md"}
     invalid = []
 
     for f in edit_files:
+        if f in PIPELINE_MANAGED:
+            continue
         p = Path(f)
 
         if not p.exists():
