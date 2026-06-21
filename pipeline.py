@@ -332,6 +332,7 @@ def run_prompt(
         "--no-auto-commits",
         "--verbose",
         "--map-tokens","0",
+        "--no-auto-context-window",
         "--model",
         MODEL,
         *file_args,
